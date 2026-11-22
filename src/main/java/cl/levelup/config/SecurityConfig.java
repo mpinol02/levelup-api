@@ -1,4 +1,3 @@
-
 package cl.levelup.config;
 
 import jakarta.servlet.DispatcherType;
@@ -16,7 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
 
-    // Define qué rutas son públicas y cuáles requieren autenticación.
+    // Define las rutas públicas y las rutas protegidas.
     @Bean
     SecurityFilterChain seguridad(HttpSecurity http) throws Exception {
 
@@ -26,50 +25,55 @@ public class SecurityConfig {
         return http
                 .csrf(csrf -> csrf
                         .ignoringRequestMatchers(registro, login))
+
                 .sessionManagement(sesion -> sesion
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
                 .authorizeHttpRequests(reglas -> reglas
 
                         // Permite procesar respuestas de error.
-                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .dispatcherTypeMatchers(DispatcherType.ERROR)
+                        .permitAll()
 
-                        // Endpoint público del estado de la API.
+                        // Estado público de la API.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/estado"
                         ).permitAll()
 
-                        // Registro e inicio de sesión públicos.
+                        // Registro e inicio de sesión.
                         .requestMatchers(
                                 HttpMethod.POST,
                                 registro,
                                 login
                         ).permitAll()
 
-                        // Consulta del usuario autenticado.
+                        // Información del usuario autenticado.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/auth/me"
                         ).authenticated()
 
-                        // Endpoints exclusivos del Administrador.
+                        // Rutas exclusivas del Administrador.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/admin/estado",
-                                "/api/v1/admin/usuarios"
+                                "/api/v1/admin/usuarios",
+                                "/api/v1/admin/reportes/usuarios"
                         ).hasRole("Administrador")
 
-                        // Bloquea los endpoints no autorizados.
+                        // Bloquea las rutas no autorizadas.
                         .anyRequest().denyAll()
                 )
+
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
                                 .jwtAuthenticationConverter(convertirRol())))
+
                 .build();
     }
 
     // Convierte el rol del JWT a una autoridad de Spring Security.
-    // Ejemplo: "Administrador" -> "ROLE_Administrador".
     private JwtAuthenticationConverter convertirRol() {
 
         JwtGrantedAuthoritiesConverter roles =
@@ -86,7 +90,7 @@ public class SecurityConfig {
         return conversor;
     }
 
-    // Cifra y verifica contraseñas mediante BCrypt.
+    // Codificación de contraseñas mediante BCrypt.
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
