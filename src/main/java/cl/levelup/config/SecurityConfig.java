@@ -3,6 +3,7 @@ package cl.levelup.config;
 import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -12,15 +13,23 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
+import java.util.Arrays;
+
 @Configuration
 public class SecurityConfig {
 
-    // Define las rutas públicas y las rutas protegidas.
     @Bean
-    SecurityFilterChain seguridad(HttpSecurity http) throws Exception {
+    SecurityFilterChain seguridad(
+            HttpSecurity http,
+            Environment environment) throws Exception {
 
         String registro = "/api/v1/auth/registro";
         String login = "/api/v1/auth/login";
+
+        // Swagger público únicamente en el perfil local.
+        boolean perfilLocal = Arrays.asList(
+                environment.getActiveProfiles()
+        ).contains("local");
 
         return http
                 .csrf(csrf -> csrf
@@ -29,42 +38,50 @@ public class SecurityConfig {
                 .sessionManagement(sesion -> sesion
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                .authorizeHttpRequests(reglas -> reglas
+                .authorizeHttpRequests(reglas -> {
 
-                        // Permite procesar respuestas de error.
-                        .dispatcherTypeMatchers(DispatcherType.ERROR)
-                        .permitAll()
+                    reglas.dispatcherTypeMatchers(
+                            DispatcherType.ERROR
+                    ).permitAll();
 
-                        // Estado público de la API.
-                        .requestMatchers(
+                    reglas.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/v1/estado"
+                    ).permitAll();
+
+                    reglas.requestMatchers(
+                            HttpMethod.POST,
+                            registro,
+                            login
+                    ).permitAll();
+
+                    reglas.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/v1/auth/me"
+                    ).authenticated();
+
+                    // Permitir documentación solo durante desarrollo local.
+                    if (perfilLocal) {
+                        reglas.requestMatchers(
                                 HttpMethod.GET,
-                                "/api/v1/estado"
-                        ).permitAll()
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs",
+                                "/v3/api-docs/**"
+                        ).permitAll();
+                    }
 
-                        // Registro e inicio de sesión.
-                        .requestMatchers(
-                                HttpMethod.POST,
-                                registro,
-                                login
-                        ).permitAll()
+                    // Acceso exclusivo del Administrador.
+                    reglas.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/v1/admin/estado",
+                            "/api/v1/admin/usuarios",
+                            "/api/v1/admin/reportes/usuarios"
+                    ).hasRole("Administrador");
 
-                        // Información del usuario autenticado.
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/api/v1/auth/me"
-                        ).authenticated()
-
-                        // Rutas exclusivas del Administrador.
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/api/v1/admin/estado",
-                                "/api/v1/admin/usuarios",
-                                "/api/v1/admin/reportes/usuarios"
-                        ).hasRole("Administrador")
-
-                        // Bloquea las rutas no autorizadas.
-                        .anyRequest().denyAll()
-                )
+                    // Bloquea cualquier ruta no autorizada.
+                    reglas.anyRequest().denyAll();
+                })
 
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
