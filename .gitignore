@@ -1,0 +1,17 @@
+# Archivos generados por Maven
+target/
+
+# Variables y credenciales locales
+.env
+.env.*
+!.env.example
+
+# Configuración de IntelliJ
+.idea/
+*.iml
+
+# Configuración local de VS Code
+.vscode/
+
+# Archivos temporales
+*.log
