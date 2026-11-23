@@ -1,4 +1,17 @@
 package cl.levelup.categoria;
 
-// Mario: estructura inicial; implementar en el bloque categoria.
-public class CategoriaResponse {  }
+// Información que devuelve la API al consultar categorías.
+public record CategoriaResponse(
+        Long id,
+        String nombre,
+        String descripcion
+) {
+
+    public static CategoriaResponse desdeEntidad(Categoria categoria) {
+        return new CategoriaResponse(
+                categoria.getId(),
+                categoria.getNombre(),
+                categoria.getDescripcion()
+        );
+    }
+}

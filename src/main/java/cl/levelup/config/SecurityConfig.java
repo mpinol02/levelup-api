@@ -1,6 +1,7 @@
 package cl.levelup.config;
 
 import jakarta.servlet.DispatcherType;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -23,44 +24,45 @@ public class SecurityConfig {
             HttpSecurity http,
             Environment environment) throws Exception {
 
-        String registro = "/api/v1/auth/registro";
-        String login = "/api/v1/auth/login";
-
-        // Swagger público únicamente en el perfil local.
         boolean perfilLocal = Arrays.asList(
                 environment.getActiveProfiles()
         ).contains("local");
 
         return http
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers(registro, login))
+
+                // API REST sin sesiones, autenticada mediante JWT.
+                .csrf(csrf -> csrf.disable())
 
                 .sessionManagement(sesion -> sesion
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(reglas -> {
 
+                    // Permite procesar respuestas de error.
                     reglas.dispatcherTypeMatchers(
                             DispatcherType.ERROR
                     ).permitAll();
 
+                    // Estado público de la API.
                     reglas.requestMatchers(
                             HttpMethod.GET,
                             "/api/v1/estado"
                     ).permitAll();
 
+                    // Registro e inicio de sesión.
                     reglas.requestMatchers(
                             HttpMethod.POST,
-                            registro,
-                            login
+                            "/api/v1/auth/registro",
+                            "/api/v1/auth/login"
                     ).permitAll();
 
+                    // Información del usuario autenticado.
                     reglas.requestMatchers(
                             HttpMethod.GET,
                             "/api/v1/auth/me"
                     ).authenticated();
 
-                    // Permitir documentación solo durante desarrollo local.
+                    // Swagger disponible solo en el perfil local.
                     if (perfilLocal) {
                         reglas.requestMatchers(
                                 HttpMethod.GET,
@@ -71,7 +73,32 @@ public class SecurityConfig {
                         ).permitAll();
                     }
 
-                    // Acceso exclusivo del Administrador.
+                    // Consultas públicas de categorías.
+                    reglas.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/v1/categorias",
+                            "/api/v1/categorias/*"
+                    ).permitAll();
+
+                    // Creación de categorías: solo Administrador.
+                    reglas.requestMatchers(
+                            HttpMethod.POST,
+                            "/api/v1/categorias"
+                    ).hasRole("Administrador");
+
+                    // Actualización de categorías: solo Administrador.
+                    reglas.requestMatchers(
+                            HttpMethod.PUT,
+                            "/api/v1/categorias/*"
+                    ).hasRole("Administrador");
+
+                    // Eliminación de categorías: solo Administrador.
+                    reglas.requestMatchers(
+                            HttpMethod.DELETE,
+                            "/api/v1/categorias/*"
+                    ).hasRole("Administrador");
+
+                    // Endpoints administrativos existentes.
                     reglas.requestMatchers(
                             HttpMethod.GET,
                             "/api/v1/admin/estado",
@@ -79,7 +106,7 @@ public class SecurityConfig {
                             "/api/v1/admin/reportes/usuarios"
                     ).hasRole("Administrador");
 
-                    // Bloquea cualquier ruta no autorizada.
+                    // Todas las demás rutas permanecen bloqueadas.
                     reglas.anyRequest().denyAll();
                 })
 
@@ -90,7 +117,7 @@ public class SecurityConfig {
                 .build();
     }
 
-    // Convierte el rol del JWT a una autoridad de Spring Security.
+    // Convierte el rol del JWT en una autoridad Spring Security.
     private JwtAuthenticationConverter convertirRol() {
 
         JwtGrantedAuthoritiesConverter roles =
@@ -107,7 +134,7 @@ public class SecurityConfig {
         return conversor;
     }
 
-    // Codificación de contraseñas mediante BCrypt.
+    // Codifica las contraseñas mediante BCrypt.
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
