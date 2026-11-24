@@ -2,7 +2,7 @@
 Base de trabajo para Mario y Axel. Abrir esta carpeta (la que contiene pom.xml) en VS Code o IntelliJ. Frontend separado: tienda-react.
 
 ## Windows · primera ejecución
-Requisitos: JDK 21 y Maven 3.6.3 o superior en PATH. Verificar con java -version y mvn -version. La primera compilación descarga dependencias.
+Requisitos: JDK 21 LTS y Maven 3.9 o superior en PATH. Verificar con java -version, javac -version y mvn -version. La primera compilación descarga dependencias.
 1. En esta carpeta ejecutar `mvn test`.
 2. Ejecutar `mvn spring-boot:run "-Dspring-boot.run.profiles=local"`.
 3. Abrir http://localhost:8080/api/v1/estado y comprobar estado OK. Detener con Ctrl+C.

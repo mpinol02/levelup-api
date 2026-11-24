@@ -22,7 +22,8 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain seguridad(
             HttpSecurity http,
-            Environment environment) throws Exception {
+            Environment environment
+    ) throws Exception {
 
         boolean perfilLocal = Arrays.asList(
                 environment.getActiveProfiles()
@@ -38,31 +39,31 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(reglas -> {
 
-                    // Permite procesar respuestas de error.
+                    // Permite procesar las respuestas de error.
                     reglas.dispatcherTypeMatchers(
                             DispatcherType.ERROR
                     ).permitAll();
 
-                    // Estado público de la API.
+                    // Permite consultar el estado de la API.
                     reglas.requestMatchers(
                             HttpMethod.GET,
                             "/api/v1/estado"
                     ).permitAll();
 
-                    // Registro e inicio de sesión.
+                    // Permite registrar usuarios e iniciar sesion.
                     reglas.requestMatchers(
                             HttpMethod.POST,
                             "/api/v1/auth/registro",
                             "/api/v1/auth/login"
                     ).permitAll();
 
-                    // Información del usuario autenticado.
+                    // Permite consultar los datos del usuario autenticado.
                     reglas.requestMatchers(
                             HttpMethod.GET,
                             "/api/v1/auth/me"
                     ).authenticated();
 
-                    // Swagger disponible solo en el perfil local.
+                    // Swagger solo esta disponible en el perfil local.
                     if (perfilLocal) {
                         reglas.requestMatchers(
                                 HttpMethod.GET,
@@ -73,32 +74,63 @@ public class SecurityConfig {
                         ).permitAll();
                     }
 
-                    // Consultas públicas de categorías.
+                    // Permite consultar categorias publicamente.
                     reglas.requestMatchers(
                             HttpMethod.GET,
                             "/api/v1/categorias",
                             "/api/v1/categorias/*"
                     ).permitAll();
 
-                    // Creación de categorías: solo Administrador.
+                    // Solo el Administrador puede crear categorias.
                     reglas.requestMatchers(
                             HttpMethod.POST,
                             "/api/v1/categorias"
                     ).hasRole("Administrador");
 
-                    // Actualización de categorías: solo Administrador.
+                    // Solo el Administrador puede actualizar categorias.
                     reglas.requestMatchers(
                             HttpMethod.PUT,
                             "/api/v1/categorias/*"
                     ).hasRole("Administrador");
 
-                    // Eliminación de categorías: solo Administrador.
+                    // Solo el Administrador puede eliminar categorias.
                     reglas.requestMatchers(
                             HttpMethod.DELETE,
                             "/api/v1/categorias/*"
                     ).hasRole("Administrador");
 
-                    // Endpoints administrativos existentes.
+                    // Permite consultar todos los productos publicamente.
+                    reglas.requestMatchers(
+                            HttpMethod.GET,
+                            "/api/v1/productos",
+                            "/api/v1/productos/**"
+                    ).permitAll();
+
+                    // Solo el Administrador puede crear productos.
+                    reglas.requestMatchers(
+                            HttpMethod.POST,
+                            "/api/v1/productos"
+                    ).hasRole("Administrador");
+
+                    // Solo el Administrador puede actualizar productos.
+                    reglas.requestMatchers(
+                            HttpMethod.PUT,
+                            "/api/v1/productos/*"
+                    ).hasRole("Administrador");
+
+                    // Solo el Administrador puede eliminar productos.
+                    reglas.requestMatchers(
+                            HttpMethod.DELETE,
+                            "/api/v1/productos/*"
+                    ).hasRole("Administrador");
+
+                    // Solo el Administrador puede actualizar el stock.
+                    reglas.requestMatchers(
+                            HttpMethod.PATCH,
+                            "/api/v1/productos/*/stock"
+                    ).hasRole("Administrador");
+
+                    // Mantiene protegidos los endpoints administrativos.
                     reglas.requestMatchers(
                             HttpMethod.GET,
                             "/api/v1/admin/estado",
@@ -106,7 +138,7 @@ public class SecurityConfig {
                             "/api/v1/admin/reportes/usuarios"
                     ).hasRole("Administrador");
 
-                    // Todas las demás rutas permanecen bloqueadas.
+                    // Bloquea las rutas que no tienen permisos definidos.
                     reglas.anyRequest().denyAll();
                 })
 
@@ -117,7 +149,7 @@ public class SecurityConfig {
                 .build();
     }
 
-    // Convierte el rol del JWT en una autoridad Spring Security.
+    // Convierte el rol del JWT en una autoridad de Spring Security.
     private JwtAuthenticationConverter convertirRol() {
 
         JwtGrantedAuthoritiesConverter roles =
@@ -134,7 +166,7 @@ public class SecurityConfig {
         return conversor;
     }
 
-    // Codifica las contraseñas mediante BCrypt.
+    // Protege las contrasenas utilizando BCrypt.
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
