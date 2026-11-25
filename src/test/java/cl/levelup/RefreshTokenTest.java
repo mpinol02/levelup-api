@@ -1,11 +1,14 @@
 package cl.levelup;
 
+import cl.levelup.auth.RefreshToken;
+import cl.levelup.auth.RefreshTokenRepository;
 import cl.levelup.auth.RefreshTokenService;
 import cl.levelup.auth.RefreshTokenService.TokensRenovados;
 import cl.levelup.usuario.RegistroRequest;
 import cl.levelup.usuario.Usuario;
 import cl.levelup.usuario.UsuarioService;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -31,6 +35,9 @@ class RefreshTokenTest {
 
     @Autowired
     private RefreshTokenService refreshTokens;
+
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
 
     private Usuario usuario;
 
@@ -124,6 +131,38 @@ class RefreshTokenTest {
         ResponseStatusException error = assertThrows(
                 ResponseStatusException.class,
                 () -> refreshTokens.renovar("")
+        );
+
+        assertThat(error.getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    // Comprueba que un token vencido no pueda renovar la sesion.
+    @Test
+    void rechazaRefreshTokenVencido() {
+        String token = refreshTokens.crear(usuario);
+
+        // Recupera el registro creado para esta prueba.
+        RefreshToken registro = refreshTokenRepository
+                .findAll()
+                .stream()
+                .findFirst()
+                .orElseThrow();
+
+        // Simula que el token vencio hace un minuto.
+        ReflectionTestUtils.setField(
+                registro,
+                "venceEn",
+                Instant.now().minusSeconds(60)
+        );
+
+        // Guarda la fecha vencida en la base de datos H2.
+        refreshTokenRepository.saveAndFlush(registro);
+
+        // Comprueba que el servicio rechace el token vencido.
+        ResponseStatusException error = assertThrows(
+                ResponseStatusException.class,
+                () -> refreshTokens.renovar(token)
         );
 
         assertThat(error.getStatusCode())
