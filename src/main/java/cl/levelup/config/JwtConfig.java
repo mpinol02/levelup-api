@@ -3,6 +3,7 @@ package cl.levelup.config;
 import java.security.SecureRandom;
 import java.util.Base64;
 
+import cl.levelup.usuario.UsuarioRepository;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -11,6 +12,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -55,15 +58,35 @@ public class JwtConfig {
 
     // Verifica los tokens que llegan en las peticiones protegidas.
     @Bean
-    JwtDecoder jwtDecoder(SecretKey claveJwt) {
+    JwtDecoder jwtDecoder(SecretKey claveJwt, UsuarioRepository usuarios) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder
                 .withSecretKey(claveJwt)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
 
-        decoder.setJwtValidator(
-                JwtValidators.createDefaultWithIssuer(JwtService.EMISOR)
-        );
+        var validarVigenciaYEmisor = JwtValidators.createDefaultWithIssuer(JwtService.EMISOR);
+        decoder.setJwtValidator(jwt -> {
+            var resultado = validarVigenciaYEmisor.validate(jwt);
+            if (resultado.hasErrors()) {
+                return resultado;
+            }
+
+            Object version = jwt.getClaims().get(JwtService.VERSION_SEGURIDAD);
+            Object rol = jwt.getClaims().get("rol");
+            String run = jwt.getSubject();
+            if (run != null && !run.isBlank() && jwt.getExpiresAt() != null
+                    && version instanceof String && rol instanceof String
+                    && usuarios.findById(run).filter(usuario ->
+                            version.equals(usuario.getVersionSeguridad())
+                                    && rol.equals(usuario.getRol().name())
+                    ).isPresent()) {
+                return OAuth2TokenValidatorResult.success();
+            }
+
+            return OAuth2TokenValidatorResult.failure(
+                    new OAuth2Error("invalid_token", "La sesión ya no es válida.", null)
+            );
+        });
 
         return decoder;
     }

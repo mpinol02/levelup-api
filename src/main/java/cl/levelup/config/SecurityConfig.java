@@ -1,254 +1,285 @@
 package cl.levelup.config;
 
+import java.util.List;
+
 import jakarta.servlet.DispatcherType;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
-import java.util.List;
-
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain seguridad(
-            HttpSecurity http,
-            Environment environment
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http
     ) throws Exception {
 
-        boolean perfilLocal = Arrays.asList(
-                environment.getActiveProfiles()
-        ).contains("local");
-
-        return http
-
+        http
                 // Permite la comunicacion entre React y Spring Boot.
                 .cors(cors -> {})
 
-                // API REST sin sesiones de servidor.
-                .csrf(csrf -> csrf.disable())
+                // La API utiliza JWT y no sesiones tradicionales.
+                .csrf(AbstractHttpConfigurer::disable)
 
-                // La autenticacion se realiza mediante JWT.
-                .sessionManagement(sesion -> sesion
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
 
-                .authorizeHttpRequests(reglas -> {
+                .authorizeHttpRequests(auth -> auth
 
-                    // Permite procesar correctamente las respuestas de error.
-                    reglas.dispatcherTypeMatchers(
-                            DispatcherType.ERROR
-                    ).permitAll();
+                        // Permite procesar errores internos.
+                        .dispatcherTypeMatchers(
+                                DispatcherType.ERROR
+                        ).permitAll()
 
-                    // Permite las solicitudes preflight del navegador.
-                    reglas.requestMatchers(
-                            HttpMethod.OPTIONS,
-                            "/api/v1/**"
-                    ).permitAll();
+                        // Permite solicitudes CORS de verificacion.
+                        .requestMatchers(
+                                HttpMethod.OPTIONS,
+                                "/api/v1/**"
+                        ).permitAll()
 
-                    // Permite consultar el estado de la API.
-                    reglas.requestMatchers(
-                            HttpMethod.GET,
-                            "/api/v1/estado"
-                    ).permitAll();
+                        // Estado publico de la API.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/estado"
+                        ).permitAll()
 
-                    // Permite registro, login, renovacion y logout.
-                    // Refresh y logout validan el refresh token recibido.
-                    reglas.requestMatchers(
-                            HttpMethod.POST,
-                            "/api/v1/auth/registro",
-                            "/api/v1/auth/login",
-                            "/api/v1/auth/refresh",
-                            "/api/v1/auth/logout"
-                    ).permitAll();
+                        // Endpoints publicos de autenticacion.
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/auth/registro",
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/refresh",
+                                "/api/v1/auth/logout"
+                        ).permitAll()
 
-                    // Solo los usuarios autenticados pueden consultar su sesion.
-                    reglas.requestMatchers(
-                            HttpMethod.GET,
-                            "/api/v1/auth/me"
-                    ).authenticated();
+                        // Consulta de la identidad autenticada.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/auth/me"
+                        ).authenticated()
 
-                    // Permite consultar el perfil del usuario autenticado.
-                    reglas.requestMatchers(
-                            HttpMethod.GET,
-                            "/api/v1/usuarios/me"
-                    ).authenticated();
+                        // Consulta del perfil personal.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/usuarios/me"
+                        ).authenticated()
 
-                    // Permite actualizar el propio perfil.
-                    // El controlador obtiene el RUN desde el JWT.
-                    reglas.requestMatchers(
-                            HttpMethod.PUT,
-                            "/api/v1/usuarios/me"
-                    ).authenticated();
+                        // Actualizacion del perfil personal.
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/v1/usuarios/me"
+                        ).authenticated()
 
-                    // Swagger solamente esta disponible en el perfil local.
-                    if (perfilLocal) {
-                        reglas.requestMatchers(
+                        // Documentacion Swagger y OpenAPI.
+                        .requestMatchers(
                                 HttpMethod.GET,
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs",
                                 "/v3/api-docs/**"
-                        ).permitAll();
-                    }
+                        ).permitAll()
 
-                    // Permite consultar categorias publicamente.
-                    reglas.requestMatchers(
-                            HttpMethod.GET,
-                            "/api/v1/categorias",
-                            "/api/v1/categorias/*"
-                    ).permitAll();
+                        // Administracion de usuarios.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/admin/usuarios",
+                                "/api/v1/admin/usuarios/*"
+                        ).hasRole("Administrador")
 
-                    // Solo Administrador puede crear categorias.
-                    reglas.requestMatchers(
-                            HttpMethod.POST,
-                            "/api/v1/categorias"
-                    ).hasRole("Administrador");
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/admin/usuarios"
+                        ).hasRole("Administrador")
 
-                    // Solo Administrador puede actualizar categorias.
-                    reglas.requestMatchers(
-                            HttpMethod.PUT,
-                            "/api/v1/categorias/*"
-                    ).hasRole("Administrador");
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/v1/admin/usuarios/*"
+                        ).hasRole("Administrador")
 
-                    // Solo Administrador puede eliminar categorias.
-                    reglas.requestMatchers(
-                            HttpMethod.DELETE,
-                            "/api/v1/categorias/*"
-                    ).hasRole("Administrador");
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/admin/usuarios/*"
+                        ).hasRole("Administrador")
 
-                    // Permite consultar productos publicamente.
-                    reglas.requestMatchers(
-                            HttpMethod.GET,
-                            "/api/v1/productos",
-                            "/api/v1/productos/**"
-                    ).permitAll();
+                        // Consulta publica de categorias.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/categorias",
+                                "/api/v1/categorias/*"
+                        ).permitAll()
 
-                    // Solo Administrador puede crear productos.
-                    reglas.requestMatchers(
-                            HttpMethod.POST,
-                            "/api/v1/productos"
-                    ).hasRole("Administrador");
+                        // Administracion de categorias.
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/categorias"
+                        ).hasRole("Administrador")
 
-                    // Solo Administrador puede actualizar productos.
-                    reglas.requestMatchers(
-                            HttpMethod.PUT,
-                            "/api/v1/productos/*"
-                    ).hasRole("Administrador");
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/v1/categorias/*"
+                        ).hasRole("Administrador")
 
-                    // Solo Administrador puede eliminar productos.
-                    reglas.requestMatchers(
-                            HttpMethod.DELETE,
-                            "/api/v1/productos/*"
-                    ).hasRole("Administrador");
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/categorias/*"
+                        ).hasRole("Administrador")
 
-                    // Solo Administrador puede actualizar el stock.
-                    reglas.requestMatchers(
-                            HttpMethod.PATCH,
-                            "/api/v1/productos/*/stock"
-                    ).hasRole("Administrador");
+                        // Consulta publica de productos.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/productos",
+                                "/api/v1/productos/**"
+                        ).permitAll()
 
-                    // Mantiene protegidos los endpoints administrativos.
-                    reglas.requestMatchers(
-                            HttpMethod.GET,
-                            "/api/v1/admin/estado",
-                            "/api/v1/admin/usuarios",
-                            "/api/v1/admin/reportes/usuarios"
-                    ).hasRole("Administrador");
+                        // Administracion de productos.
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/productos"
+                        ).hasRole("Administrador")
 
-                    // Bloquea cualquier ruta que no tenga permisos definidos.
-                    reglas.anyRequest().denyAll();
-                })
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/v1/productos/*"
+                        ).hasRole("Administrador")
 
-                // Valida el JWT y convierte su rol en autoridad.
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt
-                                .jwtAuthenticationConverter(convertirRol())))
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/productos/*"
+                        ).hasRole("Administrador")
 
-                .build();
-    }
+                        // Actualizacion del stock.
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/productos/*/stock"
+                        ).hasRole("Administrador")
 
-    // Configura los origenes permitidos para desarrollo local.
-    @Bean
-    CorsConfigurationSource corsConfigurationSource(
-            Environment environment
-    ) {
-        CorsConfiguration configuracion = new CorsConfiguration();
+                        // Formulario publico de contacto.
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/contactos"
+                        ).permitAll()
 
-        boolean perfilLocal = Arrays.asList(
-                environment.getActiveProfiles()
-        ).contains("local");
+                        // Administracion de contacto y soporte.
+                        .requestMatchers(
+                                "/api/v1/admin/contactos",
+                                "/api/v1/admin/contactos/**"
+                        ).hasRole("Administrador")
 
-        // Permite el frontend Vite solamente en el perfil local.
-        if (perfilLocal) {
-            configuracion.setAllowedOrigins(List.of(
-                    "http://localhost:5173"
-            ));
-        }
+                        // Estado del panel administrativo.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/admin/estado"
+                        ).hasRole("Administrador")
 
-        // Metodos HTTP utilizados por la API.
-        configuracion.setAllowedMethods(List.of(
-                "GET",
-                "POST",
-                "PUT",
-                "PATCH",
-                "DELETE",
-                "OPTIONS"
-        ));
+                        // Reportes administrativos de usuarios,
+                        // contacto y futuros indicadores.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/admin/reportes/**"
+                        ).hasRole("Administrador")
 
-        // Encabezados necesarios para JWT y solicitudes JSON.
-        configuracion.setAllowedHeaders(List.of(
-                "Authorization",
-                "Content-Type",
-                "Accept"
-        ));
+                        // Bloquea cualquier ruta no autorizada.
+                        .anyRequest().denyAll()
+                )
 
-        // Tiempo de almacenamiento de la respuesta preflight.
-        configuracion.setMaxAge(3600L);
+                // Configura la autenticacion mediante JWT.
+                .oauth2ResourceServer(oauth2 ->
+                        oauth2.jwt(jwt ->
+                                jwt.jwtAuthenticationConverter(
+                                        jwtAuthenticationConverter()
+                                )
+                        )
+                );
 
-        UrlBasedCorsConfigurationSource origenes =
-                new UrlBasedCorsConfigurationSource();
-
-        origenes.registerCorsConfiguration(
-                "/api/v1/**",
-                configuracion
-        );
-
-        return origenes;
+        return http.build();
     }
 
     // Convierte el rol del JWT en una autoridad de Spring Security.
-    private JwtAuthenticationConverter convertirRol() {
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
 
-        JwtGrantedAuthoritiesConverter roles =
+        JwtGrantedAuthoritiesConverter authoritiesConverter =
                 new JwtGrantedAuthoritiesConverter();
 
-        roles.setAuthoritiesClaimName("rol");
-        roles.setAuthorityPrefix("ROLE_");
+        authoritiesConverter.setAuthoritiesClaimName("rol");
 
-        JwtAuthenticationConverter conversor =
+        authoritiesConverter.setAuthorityPrefix("ROLE_");
+
+        JwtAuthenticationConverter authenticationConverter =
                 new JwtAuthenticationConverter();
 
-        conversor.setJwtGrantedAuthoritiesConverter(roles);
+        authenticationConverter.setJwtGrantedAuthoritiesConverter(
+                authoritiesConverter
+        );
 
-        return conversor;
+        return authenticationConverter;
+    }
+
+    // Configura los permisos de comunicacion con React.
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+
+        CorsConfiguration configuration =
+                new CorsConfiguration();
+
+        configuration.setAllowedOrigins(
+                List.of("http://localhost:5173")
+        );
+
+        configuration.setAllowedMethods(
+                List.of(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "OPTIONS"
+                )
+        );
+
+        configuration.setAllowedHeaders(
+                List.of(
+                        "Authorization",
+                        "Content-Type",
+                        "Accept"
+                )
+        );
+
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration(
+                "/api/v1/**",
+                configuration
+        );
+
+        return source;
     }
 
     // Protege las contrasenas mediante BCrypt.
     @Bean
-    PasswordEncoder passwordEncoder() {
+    public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 }

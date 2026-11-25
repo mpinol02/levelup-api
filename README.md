@@ -7,6 +7,13 @@ Requisitos: JDK 21 LTS y Maven 3.9 o superior en PATH. Verificar con java -versi
 2. Ejecutar `mvn spring-boot:run "-Dspring-boot.run.profiles=local"`.
 3. Abrir http://localhost:8080/api/v1/estado y comprobar estado OK. Detener con Ctrl+C.
 
+## Actualizar una base MySQL existente
+
+Con la API detenida, ejecuta una vez [la migración de seguridad JWT](docs/mysql-version-seguridad.sql)
+antes de arrancar esta versión en `dev` o `prod`. La migración asigna una versión única a cada cuenta
+y elimina los tokens de renovación existentes. Los usuarios deben volver a iniciar sesión.
+El perfil `local` crea el esquema en H2 al arrancar.
+
 ## Responsabilidades
 Todo el código Java está en src/main/java/cl/levelup.
 - Mario: usuario, auth, config, error, producto, categoria y admin. Admin consulta órdenes, historial y reportes.

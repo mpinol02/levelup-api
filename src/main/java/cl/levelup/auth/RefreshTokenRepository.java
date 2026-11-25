@@ -21,6 +21,13 @@ public interface RefreshTokenRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    @Query("SELECT t.usuario.run FROM RefreshToken t WHERE t.tokenHash = :hash")
+    Optional<String> buscarRunPorHash(@Param("hash") String hash);
+
+    @Modifying
+    @Query("DELETE FROM RefreshToken t WHERE t.usuario.run = :run")
+    void eliminarPorRun(@Param("run") String run);
+
     // Elimina registros vencidos o revocados.
     // Debe ejecutarse dentro de una transaccion.
     @Modifying

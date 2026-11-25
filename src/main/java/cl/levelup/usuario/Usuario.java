@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 // Representa una cuenta de la tienda en la tabla usuarios.
 @Entity
@@ -51,6 +52,10 @@ public class Usuario {
     @Column(nullable = false, length = 20)
     private Rol rol = Rol.Cliente;
 
+    @JsonIgnore
+    @Column(name = "version_seguridad", nullable = false, unique = true, length = 36)
+    private String versionSeguridad = UUID.randomUUID().toString();
+
     // JPA necesita un constructor sin argumentos para leer los registros.
     protected Usuario() {
     }
@@ -65,6 +70,7 @@ public class Usuario {
     public String getDireccion() { return direccion; }
     public String getPasswordHash() { return passwordHash; }
     public Rol getRol() { return rol; }
+    public String getVersionSeguridad() { return versionSeguridad; }
 
     public void setRun(String run) { this.run = run; }
     public void setNombre(String nombre) { this.nombre = nombre; }
@@ -79,5 +85,10 @@ public class Usuario {
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
     }
-    public void setRol(Rol rol) { this.rol = rol; }
+    public void setRol(Rol rol) {
+        if (this.rol != rol) {
+            this.rol = rol;
+            versionSeguridad = UUID.randomUUID().toString();
+        }
+    }
 }

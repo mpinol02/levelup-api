@@ -1,5 +1,6 @@
 package cl.levelup.admin;
 
+import cl.levelup.contacto.ContactoRepository;
 import cl.levelup.usuario.Rol;
 import cl.levelup.usuario.Usuario;
 import cl.levelup.usuario.UsuarioRepository;
@@ -13,12 +14,17 @@ import java.util.List;
 public class ReporteService {
 
     private final UsuarioRepository usuarioRepository;
+    private final ContactoRepository contactoRepository;
 
-    public ReporteService(UsuarioRepository usuarioRepository) {
+    public ReporteService(
+            UsuarioRepository usuarioRepository,
+            ContactoRepository contactoRepository
+    ) {
         this.usuarioRepository = usuarioRepository;
+        this.contactoRepository = contactoRepository;
     }
 
-    // Calcula las estadísticas con usuarios reales.
+    // Calcula las estadisticas con usuarios reales.
     @Transactional(readOnly = true)
     public ReporteResponse obtenerReporteUsuarios() {
 
@@ -31,7 +37,9 @@ public class ReporteService {
                 .count();
 
         long totalAdministradores = usuarios.stream()
-                .filter(usuario -> usuario.getRol() == Rol.Administrador)
+                .filter(usuario ->
+                        usuario.getRol() == Rol.Administrador
+                )
                 .count();
 
         long totalVendedores = usuarios.stream()
@@ -43,6 +51,25 @@ public class ReporteService {
                 totalClientes,
                 totalAdministradores,
                 totalVendedores
+        );
+    }
+
+    // Calcula las estadisticas de contacto desde la base de datos.
+    @Transactional(readOnly = true)
+    public ReporteContactoResponse obtenerReporteContactos() {
+
+        long totalContactos = contactoRepository.count();
+
+        long totalPendientes =
+                contactoRepository.countByAtendidoFalse();
+
+        long totalAtendidos =
+                totalContactos - totalPendientes;
+
+        return new ReporteContactoResponse(
+                totalContactos,
+                totalPendientes,
+                totalAtendidos
         );
     }
 }

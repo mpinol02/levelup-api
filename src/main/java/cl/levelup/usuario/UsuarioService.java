@@ -117,7 +117,8 @@ public class UsuarioService {
             String run,
             @NotNull @Valid PerfilRequest datos
     ) {
-        Usuario usuario = buscarPorRun(run);
+        Usuario usuario = usuarios.bloquearPorRun(run)
+                .orElseThrow(this::usuarioNoEncontrado);
 
         String nombre = datos.nombre().trim();
         String apellidos = datos.apellidos().trim();
@@ -148,10 +149,11 @@ public class UsuarioService {
     // Busca un usuario registrado y controla su inexistencia.
     private Usuario buscarPorRun(String run) {
         return usuarios.findById(run)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "No se encontró el usuario."
-                ));
+                .orElseThrow(this::usuarioNoEncontrado);
+    }
+
+    private ResponseStatusException usuarioNoEncontrado() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encontró el usuario.");
     }
 
     // Calcula y valida el dígito verificador del RUN.

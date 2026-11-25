@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import cl.levelup.config.JwtService;
+import cl.levelup.contacto.Contacto;
+import cl.levelup.contacto.ContactoRepository;
 import cl.levelup.usuario.RegistroRequest;
 import cl.levelup.usuario.Rol;
 import cl.levelup.usuario.Usuario;
@@ -31,6 +33,9 @@ class ReporteTest {
     private static final String RUTA =
             "/api/v1/admin/reportes/usuarios";
 
+    private static final String RUTA_CONTACTOS =
+            "/api/v1/admin/reportes/contactos";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -43,11 +48,15 @@ class ReporteTest {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
-    // Crea usuarios de prueba con correos Gmail válidos.
+    @Autowired
+    private ContactoRepository contactoRepository;
+
+    // Crea usuarios de prueba con correos Gmail validos.
     private Usuario crearUsuario(
             String run,
             String correo,
-            Rol rol) {
+            Rol rol
+    ) {
 
         RegistroRequest datos = new RegistroRequest(
                 run,
@@ -67,6 +76,36 @@ class ReporteTest {
 
         return usuarioRepository.saveAndFlush(usuario);
     }
+
+    // Crea una consulta de prueba con el estado solicitado.
+    private Contacto crearContacto(boolean atendido) {
+
+        Contacto contacto = new Contacto(
+                "Cliente Prueba",
+                "contacto.reporte@gmail.com",
+                "Consulta para pruebas de reportes."
+        );
+
+        contacto.setAtendido(atendido);
+
+        return contactoRepository.saveAndFlush(contacto);
+    }
+
+    // Genera un JWT real de Administrador.
+    private String tokenAdministrador() {
+
+        Usuario admin = crearUsuario(
+                "333333333",
+                "admin.contactos.reporte@gmail.com",
+                Rol.Administrador
+        );
+
+        return jwtService.generarToken(admin);
+    }
+
+    // ==========================================
+    // PRUEBAS DE REPORTES DE USUARIOS
+    // ==========================================
 
     // PRUEBA 1: Sin JWT debe responder 401.
     @Test
@@ -89,7 +128,10 @@ class ReporteTest {
         String token = jwtService.generarToken(cliente);
 
         mockMvc.perform(get(RUTA)
-                        .header("Authorization", "Bearer " + token))
+                        .header(
+                                "Authorization",
+                                "Bearer " + token
+                        ))
                 .andExpect(status().isForbidden());
     }
 
@@ -106,7 +148,10 @@ class ReporteTest {
         String token = jwtService.generarToken(admin);
 
         mockMvc.perform(get(RUTA)
-                        .header("Authorization", "Bearer " + token))
+                        .header(
+                                "Authorization",
+                                "Bearer " + token
+                        ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalUsuarios").exists())
                 .andExpect(jsonPath("$.totalClientes").exists())
@@ -155,7 +200,10 @@ class ReporteTest {
         String token = jwtService.generarToken(admin);
 
         mockMvc.perform(get(RUTA)
-                        .header("Authorization", "Bearer " + token))
+                        .header(
+                                "Authorization",
+                                "Bearer " + token
+                        ))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalUsuarios")
                         .value(totalInicial + 3))
@@ -165,5 +213,182 @@ class ReporteTest {
                         .value(adminsIniciales + 1))
                 .andExpect(jsonPath("$.totalVendedores")
                         .value(vendedoresIniciales + 1));
+    }
+
+    // ==========================================
+    // PRUEBAS DE REPORTES DE CONTACTO
+    // ==========================================
+
+    // PRUEBA 5: Sin JWT no permite consultar contactos.
+    @Test
+    void reporteContactosSinTokenDevuelve401() throws Exception {
+
+        mockMvc.perform(get(RUTA_CONTACTOS))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // PRUEBA 6: Un Cliente no puede consultar el reporte.
+    @Test
+    void clienteNoPuedeConsultarReporteContactos()
+            throws Exception {
+
+        Usuario cliente = crearUsuario(
+                "222222222",
+                "cliente.contactos.reporte@gmail.com",
+                Rol.Cliente
+        );
+
+        String token = jwtService.generarToken(cliente);
+
+        mockMvc.perform(get(RUTA_CONTACTOS)
+                        .header(
+                                "Authorization",
+                                "Bearer " + token
+                        ))
+                .andExpect(status().isForbidden());
+    }
+
+    // PRUEBA 7: Un Vendedor tampoco puede consultar el reporte.
+    @Test
+    void vendedorNoPuedeConsultarReporteContactos()
+            throws Exception {
+
+        Usuario vendedor = crearUsuario(
+                "666666666",
+                "vendedor.contactos.reporte@gmail.com",
+                Rol.Vendedor
+        );
+
+        String token = jwtService.generarToken(vendedor);
+
+        mockMvc.perform(get(RUTA_CONTACTOS)
+                        .header(
+                                "Authorization",
+                                "Bearer " + token
+                        ))
+                .andExpect(status().isForbidden());
+    }
+
+    // PRUEBA 8: Un Administrador puede consultar el reporte.
+    @Test
+    void administradorPuedeConsultarReporteContactos()
+            throws Exception {
+
+        String token = tokenAdministrador();
+
+        mockMvc.perform(get(RUTA_CONTACTOS)
+                        .header(
+                                "Authorization",
+                                "Bearer " + token
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalContactos").exists())
+                .andExpect(jsonPath("$.totalPendientes").exists())
+                .andExpect(jsonPath("$.totalAtendidos").exists());
+    }
+
+    // PRUEBA 9: Calcula correctamente las consultas registradas.
+    @Test
+    void reporteCalculaCorrectamenteLosContactos()
+            throws Exception {
+
+        long totalInicial = contactoRepository.count();
+
+        long pendientesIniciales =
+                contactoRepository.countByAtendidoFalse();
+
+        long atendidosIniciales =
+                totalInicial - pendientesIniciales;
+
+        String token = tokenAdministrador();
+
+        // Registra dos consultas pendientes y una atendida.
+        crearContacto(false);
+        crearContacto(false);
+        crearContacto(true);
+
+        mockMvc.perform(get(RUTA_CONTACTOS)
+                        .header(
+                                "Authorization",
+                                "Bearer " + token
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalContactos")
+                        .value(totalInicial + 3))
+                .andExpect(jsonPath("$.totalPendientes")
+                        .value(pendientesIniciales + 2))
+                .andExpect(jsonPath("$.totalAtendidos")
+                        .value(atendidosIniciales + 1));
+    }
+
+    // PRUEBA 10: Actualiza los indicadores al cambiar el estado.
+    @Test
+    void reporteSeActualizaAlMarcarContactoAtendido()
+            throws Exception {
+
+        String token = tokenAdministrador();
+
+        Contacto contacto = crearContacto(false);
+
+        long totalInicial = contactoRepository.count();
+
+        long pendientesIniciales =
+                contactoRepository.countByAtendidoFalse();
+
+        long atendidosIniciales =
+                totalInicial - pendientesIniciales;
+
+        // Cambia la consulta a estado atendido.
+        contacto.setAtendido(true);
+
+        contactoRepository.saveAndFlush(contacto);
+
+        mockMvc.perform(get(RUTA_CONTACTOS)
+                        .header(
+                                "Authorization",
+                                "Bearer " + token
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalContactos")
+                        .value(totalInicial))
+                .andExpect(jsonPath("$.totalPendientes")
+                        .value(pendientesIniciales - 1))
+                .andExpect(jsonPath("$.totalAtendidos")
+                        .value(atendidosIniciales + 1));
+    }
+
+    // PRUEBA 11: Actualiza los indicadores al eliminar una consulta.
+    @Test
+    void reporteSeActualizaAlEliminarContacto()
+            throws Exception {
+
+        String token = tokenAdministrador();
+
+        Contacto contacto = crearContacto(true);
+
+        long totalInicial = contactoRepository.count();
+
+        long pendientesIniciales =
+                contactoRepository.countByAtendidoFalse();
+
+        long atendidosIniciales =
+                totalInicial - pendientesIniciales;
+
+        // Elimina la consulta de prueba.
+        contactoRepository.delete(contacto);
+        contactoRepository.flush();
+
+        mockMvc.perform(get(RUTA_CONTACTOS)
+                        .header(
+                                "Authorization",
+                                "Bearer " + token
+                        ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalContactos")
+                        .value(totalInicial - 1))
+                .andExpect(jsonPath("$.totalPendientes")
+                        .value(pendientesIniciales))
+                .andExpect(jsonPath("$.totalAtendidos")
+                        .value(atendidosIniciales - 1));
     }
 }

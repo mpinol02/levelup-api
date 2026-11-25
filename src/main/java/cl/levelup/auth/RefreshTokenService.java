@@ -2,6 +2,7 @@ package cl.levelup.auth;
 
 import cl.levelup.config.JwtService;
 import cl.levelup.usuario.Usuario;
+import cl.levelup.usuario.UsuarioRepository;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -25,19 +26,29 @@ public class RefreshTokenService {
 
     private final RefreshTokenRepository repositorio;
     private final JwtService jwt;
+    private final UsuarioRepository usuarios;
     private final SecureRandom generador = new SecureRandom();
 
     public RefreshTokenService(
             RefreshTokenRepository repositorio,
-            JwtService jwt
+            JwtService jwt,
+            UsuarioRepository usuarios
     ) {
         this.repositorio = repositorio;
         this.jwt = jwt;
+        this.usuarios = usuarios;
     }
 
     // Genera un token aleatorio y guarda solamente su hash.
     @Transactional
     public String crear(Usuario usuario) {
+        Usuario actual = usuarios.bloquearPorRun(usuario.getRun())
+                .filter(cuenta -> cuenta.getVersionSeguridad().equals(usuario.getVersionSeguridad()))
+                .orElseThrow(this::tokenInvalido);
+        return guardarToken(actual);
+    }
+
+    private String guardarToken(Usuario usuario) {
         byte[] bytes = new byte[32];
         generador.nextBytes(bytes);
 
@@ -71,7 +82,7 @@ public class RefreshTokenService {
         repositorio.save(registro);
 
         // Genera un nuevo token de renovacion para el mismo usuario.
-        String nuevoRefreshToken = crear(usuario);
+        String nuevoRefreshToken = guardarToken(usuario);
 
         // Genera un JWT nuevo con el rol actual del usuario.
         String nuevoAccessToken = jwt.generarToken(usuario);
@@ -98,8 +109,13 @@ public class RefreshTokenService {
             throw tokenInvalido();
         }
 
+        String hash = calcularHash(token);
+        String run = repositorio.buscarRunPorHash(hash).orElseThrow(this::tokenInvalido);
+        // Respeta el mismo orden de bloqueo que los cambios administrativos.
+        usuarios.bloquearPorRun(run).orElseThrow(this::tokenInvalido);
+
         RefreshToken registro = repositorio
-                .findByTokenHash(calcularHash(token))
+                .findByTokenHash(hash)
                 .orElseThrow(this::tokenInvalido);
 
         if (!registro.estaVigente(Instant.now())) {

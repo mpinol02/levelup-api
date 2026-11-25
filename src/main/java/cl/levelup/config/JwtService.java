@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class JwtService {
 
+    static final String VERSION_SEGURIDAD = "version_seguridad";
     public static final String EMISOR = "levelup-api";
     public static final Duration VIGENCIA = Duration.ofMinutes(15);
 
@@ -33,6 +34,7 @@ public class JwtService {
                 .issuedAt(ahora)
                 .expiresAt(ahora.plus(VIGENCIA))
                 .claim("rol", usuario.getRol().name())
+                .claim(VERSION_SEGURIDAD, usuario.getVersionSeguridad())
                 .build();
 
         // Firma con HS256 usando la clave que prepara JwtConfig.
