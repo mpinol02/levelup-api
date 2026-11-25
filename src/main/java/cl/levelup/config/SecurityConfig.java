@@ -50,14 +50,17 @@ public class SecurityConfig {
                             "/api/v1/estado"
                     ).permitAll();
 
-                    // Permite registrar usuarios e iniciar sesion.
+                    // Permite registro, login, renovacion y cierre de sesion.
+                    // Refresh y logout validan el refresh token recibido.
                     reglas.requestMatchers(
                             HttpMethod.POST,
                             "/api/v1/auth/registro",
-                            "/api/v1/auth/login"
+                            "/api/v1/auth/login",
+                            "/api/v1/auth/refresh",
+                            "/api/v1/auth/logout"
                     ).permitAll();
 
-                    // Permite consultar los datos del usuario autenticado.
+                    // Solo usuarios autenticados pueden consultar su sesion.
                     reglas.requestMatchers(
                             HttpMethod.GET,
                             "/api/v1/auth/me"
@@ -138,10 +141,11 @@ public class SecurityConfig {
                             "/api/v1/admin/reportes/usuarios"
                     ).hasRole("Administrador");
 
-                    // Bloquea las rutas que no tienen permisos definidos.
+                    // Bloquea las rutas sin permisos definidos.
                     reglas.anyRequest().denyAll();
                 })
 
+                // Verifica los JWT y convierte su rol en una autoridad.
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
                                 .jwtAuthenticationConverter(convertirRol())))
