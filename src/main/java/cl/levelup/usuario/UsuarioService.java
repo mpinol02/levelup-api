@@ -26,9 +26,11 @@ public class UsuarioService {
     private final PasswordEncoder passwordEncoder;
     private final EntityManager entityManager;
 
-    public UsuarioService(UsuarioRepository usuarios,
-                          PasswordEncoder passwordEncoder,
-                          EntityManager entityManager) {
+    public UsuarioService(
+            UsuarioRepository usuarios,
+            PasswordEncoder passwordEncoder,
+            EntityManager entityManager
+    ) {
         this.usuarios = usuarios;
         this.passwordEncoder = passwordEncoder;
         this.entityManager = entityManager;
@@ -42,26 +44,43 @@ public class UsuarioService {
 
         if (!esRunValido(run)) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "Ingresa un RUN válido, sin puntos ni guion.");
+                    HttpStatus.BAD_REQUEST,
+                    "Ingresa un RUN válido, sin puntos ni guion."
+            );
         }
 
-        if (datos.fechaNacimiento().isAfter(LocalDate.now().minusYears(18))) {
+        if (datos.fechaNacimiento().isAfter(
+                LocalDate.now().minusYears(18)
+        )) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "Debes tener al menos 18 años para registrarte.");
+                    HttpStatus.BAD_REQUEST,
+                    "Debes tener al menos 18 años para registrarte."
+            );
         }
 
-        String dominio = correo.substring(correo.lastIndexOf('@') + 1);
+        String dominio = correo.substring(
+                correo.lastIndexOf('@') + 1
+        );
+
         if (!DOMINIOS_PERMITIDOS.contains(dominio)) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "Solo se permiten correos Duoc o Gmail.");
+                    HttpStatus.BAD_REQUEST,
+                    "Solo se permiten correos Duoc o Gmail."
+            );
         }
 
-        if (usuarios.existsById(run) || usuarios.existsByCorreoIgnoreCase(correo)) {
+        if (
+                usuarios.existsById(run) ||
+                usuarios.existsByCorreoIgnoreCase(correo)
+        ) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Ya existe un usuario con ese RUN o correo.");
+                    HttpStatus.CONFLICT,
+                    "Ya existe un usuario con ese RUN o correo."
+            );
         }
 
         Usuario nuevo = new Usuario();
+
         nuevo.setRun(run);
         nuevo.setNombre(datos.nombre().trim());
         nuevo.setApellidos(datos.apellidos().trim());
@@ -71,20 +90,78 @@ public class UsuarioService {
         nuevo.setComuna(datos.comuna().trim());
         nuevo.setDireccion(datos.direccion().trim());
         nuevo.setRol(Rol.Cliente);
-        nuevo.setPasswordHash(passwordEncoder.encode(datos.password()));
+        nuevo.setPasswordHash(
+                passwordEncoder.encode(datos.password())
+        );
 
-        // El RUN lo ingresa el cliente: persist inserta y nunca actualiza otra cuenta.
+        // Inserta una cuenta nueva sin modificar otras cuentas.
         entityManager.persist(nuevo);
+
         return nuevo;
     }
 
-    // Calcula el dígito verificador y lo compara con el último carácter del RUN.
+    // Consulta el perfil de la cuenta identificada por su RUN.
+    // El controlador obtendrá este RUN del JWT autenticado.
+    @Transactional(readOnly = true)
+    public UsuarioResponse consultarPerfil(String run) {
+        Usuario usuario = buscarPorRun(run);
+
+        // Devuelve solo los campos permitidos.
+        return UsuarioResponse.desdeUsuario(usuario);
+    }
+
+    // Actualiza los datos editables del usuario autenticado.
+    // El RUN debe provenir del JWT, nunca del cuerpo enviado.
+    @Transactional
+    public UsuarioResponse actualizarPerfil(
+            String run,
+            @NotNull @Valid PerfilRequest datos
+    ) {
+        Usuario usuario = buscarPorRun(run);
+
+        String nombre = datos.nombre().trim();
+        String apellidos = datos.apellidos().trim();
+        String direccion = datos.direccion().trim();
+
+        // Evita almacenar valores compuestos solo por espacios.
+        if (
+                nombre.isEmpty() ||
+                apellidos.isEmpty() ||
+                direccion.isEmpty()
+        ) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Los campos del perfil son obligatorios."
+            );
+        }
+
+        // Modifica exclusivamente los campos autorizados.
+        usuario.setNombre(nombre);
+        usuario.setApellidos(apellidos);
+        usuario.setDireccion(direccion);
+
+        // JPA guarda los cambios al finalizar la transacción.
+        // No modifica RUN, correo, rol ni contraseña.
+        return UsuarioResponse.desdeUsuario(usuario);
+    }
+
+    // Busca un usuario registrado y controla su inexistencia.
+    private Usuario buscarPorRun(String run) {
+        return usuarios.findById(run)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "No se encontró el usuario."
+                ));
+    }
+
+    // Calcula y valida el dígito verificador del RUN.
     private boolean esRunValido(String run) {
         if (!run.matches("[0-9]{6,8}[0-9K]")) {
             return false;
         }
 
         String cuerpo = run.substring(0, run.length() - 1);
+
         if (Integer.parseInt(cuerpo) == 0) {
             return false;
         }
@@ -98,6 +175,7 @@ public class UsuarioService {
         }
 
         int resultado = 11 - (suma % 11);
+
         char esperado = switch (resultado) {
             case 11 -> '0';
             case 10 -> 'K';
