@@ -197,6 +197,12 @@ public class SecurityConfig {
                                 "/api/v1/admin/reportes/**"
                         ).hasRole("Administrador")
 
+                                                // Solo una sesión autenticada puede registrar una compra.
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/compras"
+                        ).authenticated()
+
                         // Bloquea cualquier ruta no autorizada.
                         .anyRequest().denyAll()
                 )
