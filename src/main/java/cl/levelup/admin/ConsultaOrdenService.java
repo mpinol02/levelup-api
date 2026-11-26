@@ -20,40 +20,70 @@ public class ConsultaOrdenService {
 
     private final OrdenRepository ordenRepository;
 
-    public ConsultaOrdenService(OrdenRepository ordenRepository) {
+    public ConsultaOrdenService(
+            OrdenRepository ordenRepository
+    ) {
         this.ordenRepository = ordenRepository;
     }
 
-    // Muestra las órdenes más recientes primero, tanto pagadas como rechazadas.
+    // Lista las ordenes pagadas y rechazadas.
     public List<ResumenOrden> listar() {
+
         Sort recientesPrimero = Sort.by(
                 Sort.Order.desc("fecha"),
                 Sort.Order.desc("id")
         );
 
-        return ordenRepository.findAll(recientesPrimero).stream()
-                .map(orden -> new ResumenOrden(
-                        orden.getId(),
-                        orden.getFecha(),
-                        new ClienteResumen(orden.getClienteNombre()),
-                        orden.getEstado(),
-                        orden.getTotal()
-                ))
+        return ordenRepository.findAll(recientesPrimero)
+                .stream()
+                .map(this::crearResumen)
                 .toList();
     }
 
-    // Busca una orden por su número y devuelve su comprobante completo.
+    // Consulta las compras pagadas de un usuario.
+    public List<ResumenOrden> listarPorUsuario(String run) {
+
+        return ordenRepository
+                .findByClienteRunAndEstadoOrderByFechaDescIdDesc(
+                        run,
+                        "Pagada"
+                )
+                .stream()
+                .map(this::crearResumen)
+                .toList();
+    }
+
+    // Convierte una orden en un resumen para las tablas.
+    private ResumenOrden crearResumen(Orden orden) {
+
+        return new ResumenOrden(
+                orden.getId(),
+                orden.getFecha(),
+                new ClienteResumen(
+                        orden.getClienteNombre()
+                ),
+                orden.getEstado(),
+                orden.getTotal()
+        );
+    }
+
+    // Recupera el comprobante completo de una orden.
     public CompraResponse buscarPorId(Long id) {
+
         if (id == null || id <= 0) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "El número de orden debe ser positivo."
+                    HttpStatus.BAD_REQUEST,
+                    "El numero de orden debe ser positivo."
             );
         }
 
         Orden orden = ordenRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "La orden no existe."
-                ));
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "La orden no existe."
+                        )
+                );
 
         var cliente = new CompraResponse.Cliente(
                 orden.getClienteRun(),
@@ -62,8 +92,9 @@ public class ConsultaOrdenService {
                 orden.getDireccion()
         );
 
-        // Usa el precio guardado en la compra, aunque el catálogo haya cambiado.
-        var productos = orden.getProductos().stream()
+        // Utiliza los precios guardados al realizar la compra.
+        var productos = orden.getProductos()
+                .stream()
                 .map(item -> new CompraResponse.Item(
                         item.getProductoId(),
                         item.getNombre(),
@@ -88,7 +119,7 @@ public class ConsultaOrdenService {
         );
     }
 
-    // La tabla del panel necesita un resumen; los productos se leen al abrir el detalle.
+    // Resumen de una orden para las vistas administrativas.
     public record ResumenOrden(
             Long id,
             Instant fecha,
@@ -97,5 +128,7 @@ public class ConsultaOrdenService {
             BigDecimal total
     ) {}
 
-    public record ClienteResumen(String nombre) {}
+    public record ClienteResumen(
+            String nombre
+    ) {}
 }
