@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/admin/ordenes")
-@PreAuthorize("hasRole('Administrador')")
 public class ConsultaOrdenController {
 
     private final ConsultaOrdenService consultaOrdenService;
@@ -23,23 +22,26 @@ public class ConsultaOrdenController {
         this.consultaOrdenService = consultaOrdenService;
     }
 
-    // Lista todas las ordenes registradas.
+    // Administrador y Vendedor pueden consultar las ordenes.
     @GetMapping
+    @PreAuthorize("hasAnyRole('Administrador', 'Vendedor')")
     public List<ConsultaOrdenService.ResumenOrden> listar() {
 
         return consultaOrdenService.listar();
     }
 
-    // Recupera el comprobante completo de una orden.
+    // Ambos roles pueden consultar el detalle de una orden.
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('Administrador', 'Vendedor')")
     public CompraResponse buscarPorId(
             @PathVariable("id") Long id
     ) {
         return consultaOrdenService.buscarPorId(id);
     }
 
-    // Consulta el historial de compras pagadas de un usuario.
+    // Solo el Administrador consulta el historial por usuario.
     @GetMapping("/usuario/{run}")
+    @PreAuthorize("hasRole('Administrador')")
     public List<ConsultaOrdenService.ResumenOrden> listarPorUsuario(
             @PathVariable("run") String run
     ) {

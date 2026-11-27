@@ -180,10 +180,16 @@ public class SecurityConfig {
                                 "/api/v1/admin/contactos/**"
                         ).hasRole("Administrador")
 
-                        // Administración de órdenes e historial de usuarios.
+                        // Administrador y Vendedor consultan las ordenes.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/admin/ordenes",
+                                "/api/v1/admin/ordenes/*"
+                        ).hasAnyRole("Administrador", "Vendedor")
+
+                        // Solo el Administrador consulta el historial por RUN.
+                        .requestMatchers(
+                                HttpMethod.GET,
                                 "/api/v1/admin/ordenes/**"
                         ).hasRole("Administrador")
 
@@ -203,13 +209,13 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/carrito",
                                 "/api/v1/carrito/**"
-                        ).authenticated()
+                        ).hasAnyRole("Cliente", "Administrador")
 
                         // Registra compras de usuarios autenticados.
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/v1/compras"
-                        ).authenticated()
+                        ).hasAnyRole("Cliente", "Administrador")
 
                         // Consulta del historial personal y comprobantes.
                         // El servicio verifica la propiedad de cada orden.
@@ -217,7 +223,7 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/api/v1/compras/mis-compras",
                                 "/api/v1/compras/*"
-                        ).authenticated()
+                        ).hasAnyRole("Cliente", "Administrador")
 
                         // Bloquea cualquier ruta no autorizada explícitamente.
                         .anyRequest().denyAll()
