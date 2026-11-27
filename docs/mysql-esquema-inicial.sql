@@ -43,18 +43,55 @@ CREATE TABLE categorias (
     CONSTRAINT uq_categorias_nombre UNIQUE (nombre)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+
 CREATE TABLE productos (
-    id           BIGINT        NOT NULL AUTO_INCREMENT,
-    nombre       VARCHAR(150)  NOT NULL,
-    descripcion  VARCHAR(1000) NULL,
-    precio       DECIMAL(12,2) NOT NULL,
-    stock        INT           NOT NULL,
-    categoria_id BIGINT        NOT NULL,
+    id              BIGINT         NOT NULL AUTO_INCREMENT,
+    codigo          VARCHAR(50)    NULL,
+    nombre          VARCHAR(150)   NOT NULL,
+    descripcion     VARCHAR(1000)  NULL,
+    precio          DECIMAL(12,2)  NOT NULL,
+    precio_anterior DECIMAL(12,2)  NULL,
+    stock           INT            NOT NULL,
+    stock_critico   INT            NULL,
+    imagen          VARCHAR(500)   NULL,
+    categoria_id    BIGINT         NOT NULL,
 
     PRIMARY KEY (id),
+
+    CONSTRAINT uq_productos_codigo
+        UNIQUE (codigo),
+
     CONSTRAINT fk_productos_categoria
-        FOREIGN KEY (categoria_id) REFERENCES categorias (id)
+        FOREIGN KEY (categoria_id)
+        REFERENCES categorias (id)
+
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- Carrito persistente asociado a cada usuario.
+CREATE TABLE carrito_items (
+    id          BIGINT     NOT NULL AUTO_INCREMENT,
+    usuario_run VARCHAR(9) NOT NULL,
+    producto_id BIGINT     NOT NULL,
+    cantidad    INT        NOT NULL,
+
+    PRIMARY KEY (id),
+
+    CONSTRAINT uk_carrito_usuario_producto
+        UNIQUE (usuario_run, producto_id),
+
+    CONSTRAINT fk_carrito_usuario
+        FOREIGN KEY (usuario_run)
+        REFERENCES usuarios (run)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_carrito_producto
+        FOREIGN KEY (producto_id)
+        REFERENCES productos (id)
+        ON DELETE CASCADE
+
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 
 CREATE TABLE contactos (
     id          BIGINT       NOT NULL AUTO_INCREMENT,
